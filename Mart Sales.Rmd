@@ -1,0 +1,187 @@
+---
+title: "Mart Sales"
+output: rmarkdown::github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(rio)
+library(formattable)
+library(dplyr)
+library(tidyverse)
+library(readxl)
+library(corrplot)
+library(stargazer)
+library(car)
+library(PerformanceAnalytics)
+library(tidyr)
+library(tm)
+library(MASS)
+library(AER)
+library(ggplot2)
+library(lubridate)
+library(lattice)
+library(lme4)
+library(MuMIn)
+options(scipen = 999)
+```
+
+Importing Data
+```{r}
+#importing data
+df<-read_xlsx("BigMartSales.xlsx",sheet = "Data")
+summary(df)
+colSums(is.na(df))  
+```
+
+Converting to factor and releveling
+```{r}
+df$Outlet_ID<-as.factor(df$Outlet_ID)
+df$Item_Fat_Content<-as.factor(df$Item_Fat_Content)
+df$Item_Type<-as.factor(df$Item_Type)
+df$Outlet_Size<-as.factor(df$Outlet_Size)
+df$Outlet_Type<-as.factor(df$Outlet_Type)
+df$City_Type<-as.factor(df$City_Type)
+df$Age<-max(df$Outlet_Year)-df$Outlet_Year
+```
+
+Summing the Item sales based on item type
+```{r}
+df2<-df %>% 
+  group_by(Outlet_ID, Item_Type) %>%                        
+  summarise(TotalSales = sum(Item_Sales))  
+```
+
+Merging Data Sets to create final data set with variables that are on the item type level.
+```{r}
+df3<-df[, c("Outlet_ID","Outlet_Year","City_Type","Outlet_Size","Outlet_Type","Age")]
+df3<-unique(df3)
+finaldf<-left_join(df2, df3, by ="Outlet_ID")
+finaldf$TotalSales<-round(finaldf$TotalSales,digits=0)
+```
+
+
+Checking the distribution of the dependent variable
+
+```{r}
+ggplot(finaldf, aes(x=finaldf$TotalSales)) + geom_histogram(color="coral",fill="coral")+ggtitle("Histogram of Total Sales")+xlab("Total Sales")
+
+ggplot(finaldf, aes(x=log(finaldf$TotalSales))) + geom_histogram(color="coral",fill="coral")+ggtitle("Histogram of Log Total Sales")+xlab("Log of Total Sales")
+
+ggplot(df, aes(x=log(df$Item_Sales))) + geom_histogram(color="coral",fill="coral")+ggtitle("Histogram of Log Total Sales")+xlab("Log of Total Sales")
+```
+
+
+Checking how Total Sales vary by different factors
+```{r}
+finaldf %>%
+  group_by(City_Type) %>%
+  ggplot()+
+  geom_boxplot(aes(x=City_Type,y=TotalSales,fill="coral"))+
+  guides(fill=FALSE)
+
+finaldf %>%
+  group_by(Outlet_ID) %>%
+  ggplot()+
+  geom_boxplot(aes(x=Outlet_ID,y=TotalSales,fill="coral"))+
+  guides(fill=FALSE)
+
+finaldf %>%
+  group_by(Outlet_Type) %>%
+  ggplot()+
+  geom_boxplot(aes(x=Outlet_Type,y=TotalSales,fill="coral"))+
+  guides(fill=FALSE)
+
+finaldf %>%
+  group_by(Item_Type) %>%
+  ggplot()+
+  geom_boxplot(aes(x=Item_Type,y=TotalSales,fill="coral"))+
+  theme(axis.text.x = element_text(angle = 50,hjust = 1))+
+  guides(fill=FALSE)
+
+```
+
+
+Running Models
+```{r}
+reg<-lmer(formula = log(TotalSales)~Item_Type+City_Type+(1|Outlet_ID)+(1|Outlet_Type),data=finaldf)
+summary(reg)
+ranef(reg)
+```
+
+```{r}
+finaldf$TotalSalesScaled<-finaldf$TotalSales/1000
+finaldf$TotalSalesScaled<-round(finaldf$TotalSalesScaled,digits=0)
+
+reg2<-glmer(formula = TotalSalesScaled~Item_Type+City_Type+(1|Outlet_ID)+Outlet_Type,data=finaldf,family = poisson(link="log"),nAGQ = 0)#,control=glmerControl(optimizer="bobyqa"))
+summary(reg2)
+ranef(reg2)
+```
+
+```{r}
+reg3<-lmer(formula = log(TotalSales)~City_Type+(1|Outlet_ID)+Outlet_Type+Item_Type,data=finaldf)
+summary(reg3)
+ranef(reg3)
+```
+
+
+```{r}
+AIC(reg3)
+```
+
+
+
+
+
+```{r}
+#bwplot(df$Item_Sales~ df$City_Type)
+#bwplot(df$Item_Sales~ df$Outlet_Type)
+#bwplot(df$Item_Sales~ df$Outlet_Size)
+#bwplot(df$Item_Sales~ df$Outlet_Type)
+#bwplot(df$Item_Sales~ df$Outlet_Type|df$Item_Type)
+#bwplot(df$Item_Sales~ df$Outlet_Type|df$Outlet_Size)
+```
+
+```{r}
+
+```
+
+
+
+
+```{r}
+AIC(reg)
+anova(reg3,reg)
+```
+
+
+
+
+
+```{r}
+anova(reg,reg2)
+```
+
+
+```{r}
+stargazer(reg,reg2,reg3,type="text",align = TRUE,single.row=TRUE,digits=2,out = "regout.txt")
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
